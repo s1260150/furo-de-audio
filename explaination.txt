@@ -1,0 +1,15 @@
+わかったことリスト：
+
+
+spotifyで使えるAPIの種類：
+
+iOS, android
+
+web API
+
+Python -> spotipy
+
+web APIで出来そうなことリスト：
+
+spotify上のurlからartistの再生top_listなどが取得できる
+
