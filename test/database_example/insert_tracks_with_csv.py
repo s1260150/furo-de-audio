@@ -19,7 +19,7 @@ if __name__ == '__main__':
         port="5432",
         database="spotify"
     )
-    cursor = conn.cursor()
+    cur = conn.cursor()
 
     sp = spotipy.Spotify(auth_manager=SpotifyOAuth())
 
@@ -33,8 +33,8 @@ if __name__ == '__main__':
             tracks = sp.playlist_tracks(pl['id'], fields="items.track.name, items.track.uri")
             print(json.dumps(tracks, indent=4))
 
-            cursor.execute("SELECT COUNT(index) FROM {};".format(pl['name'])) # primary_key(index)をあわせるためにcountしておく
-            (cur_index, ) = cursor.fetchone()
+            cur.execute("SELECT COUNT(index) FROM {};".format(pl['name'])) # primary_key(index)をあわせるためにcountしておく
+            (cur_index, ) = cur.fetchone() # cur_indexはcurrent_indexです
 
             df = pd.DataFrame.from_dict([tracks['items'][0]['track']])
             for j, tr in enumerate(tracks['items']):
@@ -45,8 +45,9 @@ if __name__ == '__main__':
             print(df.columns)
             df.to_csv('csv/{}.csv'.format(pl['name']), header=False, index=False)
             csv_file = open('csv/{}.csv'.format(pl['name']), mode='r', encoding='utf-8')
-            cursor.copy_from(csv_file, pl['name'], sep=',')
+            #cur.copy_from(csv_file, pl['name'], sep=',')
+            cur.copy_expert("COPY {} FROM STDIN (FORMAT CSV, ENCODING 'UTF8');".format(pl['name']), csv_file)
             csv_file.close()
-    conn.commit()   
-    cursor.close()
+    conn.commit()
+    cur.close()
     conn.close()

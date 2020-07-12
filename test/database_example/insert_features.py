@@ -1,4 +1,6 @@
-# insert playlist's features into database table 
+# insert playlist's features into database table
+###失敗作なので使わないように###
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import json

@@ -32,7 +32,8 @@ if __name__ == '__main__':
         track = item['track']
         #print(json.dumps(sp.audio_features(track['uri']), indent=4))
         cur.execute("SELECT COUNT(index) FROM song_features;") # primary keyにあわせるためにcountしておく
-        (cur_index, ) = cur.fetchone()
+        (cur_index, ) = cur.fetchone() # cur_indexはcurrent_indexです
+        
         df = pd.DataFrame.from_dict(sp.audio_features(track["uri"]))
         df = df.drop(labels=['type', 'id', 'uri', 'track_href', 'analysis_url', 'duration_ms'], axis=1)
         df.insert(loc=0, column='index', value=cur_index+1)
@@ -41,7 +42,8 @@ if __name__ == '__main__':
         print(df.columns)
         df.to_csv('csv/features.csv', header=False, index=False)
         csv_file = open('csv/features.csv', mode='r', encoding='utf-8')
-        cur.copy_from(csv_file, 'song_features', sep=',')
+        #cur.copy_from(csv_file, 'song_features', sep=',') -> copy_expertに変更
+        cur.copy_expert("COPY {} FROM STDIN (FORMAT CSV, ENCODING 'UTF8');".format(), csv_file)
         csv_file.close()
     
     conn.commit()
