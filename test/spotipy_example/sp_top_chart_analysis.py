@@ -1,11 +1,11 @@
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
-from client_id import *
 import sys
+import os
 import pandas as pd
 import pprint
 
-client_credentials_manager = spotipy.oauth2.SpotifyClientCredentials(CLIEND_ID, CLIEND_SECRET)
+client_credentials_manager = spotipy.oauth2.SpotifyClientCredentials(os.environ.get('SPOTIPY_CLENT_ID'), os.environ.get('SPOTIPY_CLIEND_SECRET'))
 spotify = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
 
 # PandasでCSVを読み込む、最初の行は省略
