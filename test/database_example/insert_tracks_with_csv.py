@@ -23,18 +23,27 @@ if __name__ == '__main__':
 
     sp = spotipy.Spotify(auth_manager=SpotifyOAuth())
 
-    playlists = sp.current_user_playlists()['items'] # => myStreamR, myStreamY
-    user_id = sp.me()['id'] # 自分のspotify上のIDが出る
-    update_table = ['playlist_r', 'playlist_y']
+    playlists = sp.current_user_playlists()['items'] # spotifyで自分で作ったプレイリストが入る
+    update_table = ['playlist_r', 'playlist_y'] # playlistsの中から更新するテーブルを選択する
 
-    for i, pl in enumerate(playlists):
+    for pl in playlists:
         if pl['name'] in update_table:
-            print('total tracks before update: ', pl['tracks']['total'])
+            cur.execute("DROP TABLE IF EXISTS {};".format(pl['name']))
+            print("table droped")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS {} (
+                    index SERIAL,
+                    name VARCHAR(50) NOT NULL,
+                    uri VARCHAR(50) NOT NULL,
+                    PRIMARY KEY (index)
+                );
+            """.format(pl['name']))
+            print("create table")
+            print('total tracks: ', pl['tracks']['total'])
             tracks = sp.playlist_tracks(pl['id'], fields="items.track.name, items.track.uri")
-            print(json.dumps(tracks, indent=4))
-
+            #print(json.dumps(tracks, indent=4))
             cur.execute("SELECT COUNT(index) FROM {};".format(pl['name'])) # primary_key(index)をあわせるためにcountしておく
-            (cur_index, ) = cur.fetchone() # cur_indexはcurrent_indexです
+            (cur_index, ) = cur.fetchone() # cur_indexはcurrent_index
 
             df = pd.DataFrame.from_dict([tracks['items'][0]['track']])
             for j, tr in enumerate(tracks['items']):
@@ -43,9 +52,8 @@ if __name__ == '__main__':
             df.insert(loc=0, column='index', value=[cur_index+1+c for c in range(len(tracks['items']))])
 
             print(df.columns)
-            df.to_csv('csv/{}.csv'.format(pl['name']), header=False, index=False)
+            df.to_csv('csv/{}.csv'.format(pl['name']), header=False, index=False, encoding='utf-8')
             csv_file = open('csv/{}.csv'.format(pl['name']), mode='r', encoding='utf-8')
-            #cur.copy_from(csv_file, pl['name'], sep=',')
             cur.copy_expert("COPY {} FROM STDIN (FORMAT CSV, ENCODING 'UTF8');".format(pl['name']), csv_file)
             csv_file.close()
     conn.commit()
