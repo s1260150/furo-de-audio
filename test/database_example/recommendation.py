@@ -1,14 +1,32 @@
-# insert tracks into playlist_r and playlist_y to update its content.
-# insertと書いてはいるが、やっていることは基本的にspotifyから取ってきたプレイリスト情報を使ってtableの更新をすることである
-import spotipy
-from spotipy.oauth2 import SpotifyOAuth
-import json
+# random_selected tableから特徴量を選択し、作ったmodelをつかって特徴量間の距離を求める。
+# kmeansは距離ベース, GMMは尤度でレコメンドする曲を選択する
+# この手法はもう少し工夫する必要がある。GMMsの選曲は対数尤度ではなく、random_samplingでもいいかもしれない=>こちらのほうがレコメンドとして自然かもしれない
+# 次にやること。。。協調フィルタリングを使ってレコメンド、unpersonalizedのレコメンドをする
+
 # library for database
 import psycopg2 as pg2
-import pandas as pd
+# library for recommendation
 import numpy as np
+from sklearn.externals import joblib
 
-#scope = 'playlist-modify-public'
+def compute_min_cost_kmeans(centroid, features):
+    min_cost, min_index = None, None
+    for i, mfcc in enumerate(features):
+        cost = 0
+        for c in centroid:
+            #print(type(c), c)
+            cost = cost + np.sum(np.abs(c - mfcc))
+        if min_cost is None or cost < min_cost:
+            min_cost, min_index = cost, i
+    return min_index
+
+def compute_min_cost_gmms(model, features):
+    min_cost, min_index = None, None
+    for i, mfcc in enumerate(features):
+        cost = model.score(mfcc.reshape(1, -1)) #曲の対数尤度をもとめる
+        if min_cost is None or cost < min_cost:
+            min_cost, min_index = cost, i
+    return min_index
 
 if __name__ == '__main__':
     # configuration of database
@@ -20,33 +38,33 @@ if __name__ == '__main__':
         database="spotify"
     )
     cursor = conn.cursor()
+    
+    users = ['r', 'y']
+    refer_table = ['random_selected'] # これらのtableをもとにrecommendしていく
+    recommend_table = ['recommended_r', 'recommended_y']
+    
+    cursor.execute("SELECT acousticness, danceability, energy, instrumentalness, key, liveness, loudness, mode, speechiness, tempo, time_signature, valence FROM random_selected;")
+    features = cursor.fetchall()
+    features = np.array(features)
 
-    sp = spotipy.Spotify(auth_manager=SpotifyOAuth())
-
-    playlists = sp.current_user_playlists()['items'] # => myStreamR, myStreamY
-    user_id = sp.me()['id'] # 自分のspotify上のIDが出る
-    read_table = ['playlist_r', 'playlist_y']
-
-    for i, pl in enumerate(playlists):
-        if pl['name'] in update_table:
-            print('total tracks before update: ', pl['tracks']['total'])
-            tracks = sp.playlist_tracks(pl['id'], fields="items.track.name, items.track.uri")
-            print(json.dumps(tracks, indent=4))
-
-            cursor.execute("SELECT COUNT(index) FROM {};".format(pl['name'])) # primary_key(index)をあわせるためにcountしておく
+    for i, reco_table in enumerate(recommend_table):
+        kmeans_ = joblib.load("model/kmeans_recommend_"+users[i]+".pkl")
+        gmms_ = joblib.load("model/gmms_recommend_"+users[i]+".pkl")
+        models = [kmeans_, gmms_]
+        for model in models:
+            cursor.execute("SELECT COUNT(index) FROM {};".format(reco_table)) # primary_key(index)をあわせるためにcountしておく
             (cur_index, ) = cursor.fetchone()
-
-            df = pd.DataFrame.from_dict([tracks['items'][0]['track']])
-            for j, tr in enumerate(tracks['items']):
-                if j == 0: continue
-                df = df.append([tr['track']])
-            df.insert(loc=0, column='index', value=[cur_index+1+c for c in range(len(tracks['items']))])
-
-            print(df.columns)
-            df.to_csv('csv/{}.csv'.format(pl['name']), header=False, index=False)
-            csv_file = open('csv/{}.csv'.format(pl['name']), mode='r', encoding='utf-8')
-            cursor.copy_from(csv_file, pl['name'], sep=',')
-            csv_file.close()         
-    conn.commit()   
+            min_cost, min_index = None, None
+            if model is kmeans_:
+                min_index = compute_min_cost_kmeans(model.cluster_centers_, features)
+            else:
+                min_index = compute_min_cost_gmms(model, features)
+            
+            print(min_index)
+            cursor.execute("SELECT index, name, uri FROM random_selected where index = {0};".format(min_index))
+            record = cursor.fetchall()
+            print(record)
+            cursor.execute("INSERT INTO {0} (index, name, uri, evaluation) VALUES ({1}, '{2}', '{3}', 0);".format(reco_table, cur_index, record[0][1], record[0][2]))
+    conn.commit()
     cursor.close()
     conn.close()

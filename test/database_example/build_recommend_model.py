@@ -1,12 +1,11 @@
-# insert tracks into playlist_r and playlist_y to update its content.
-# insertと書いてはいるが、やっていることは基本的にspotifyから取ってきたプレイリスト情報を使ってtableの更新をすることである
 # library for database
 import psycopg2 as pg2
+# library for ai
 import pandas as pd
 import numpy as np
 
 from sklearn.cluster import KMeans
-#from sklearn.mixture import GaussianMixtureModel
+from sklearn.mixture import GaussianMixture
 from sklearn.externals import joblib
 
 if __name__ == '__main__':
@@ -29,13 +28,17 @@ if __name__ == '__main__':
         train_data = train_data.append(pd.DataFrame.from_records(result))
         print(train_data.head())
         
-        kmeans_ = KMeans(n_clusters=3, random_state=None)
+        kmeans_ = KMeans(n_clusters=4, random_state=None)
         kmeans_.fit(train_data)
+        gmms_ = GaussianMixture(n_components=4, covariance_type='diag', max_iter=200, random_state=None)
+        gmms_.fit(train_data)
         if table == 'song_features_r':
             joblib.dump(kmeans_, 'model/kmeans_recommend_r.pkl')
+            joblib.dump(gmms_, 'model/gmms_recommend_r.pkl')
         else:
             joblib.dump(kmeans_, 'model/kmeans_recommend_y.pkl')
-
+            joblib.dump(gmms_, 'model/gmms_recommend_y.pkl')
+    
     conn.commit()
     cursor.close()
     conn.close()
