@@ -1,33 +1,46 @@
-version: '3'
+version: '3.3'
+
+networks:
+    server-network:
+      name: node-server-network
+      driver: bridge
+      external: false
+      ipam:
+        driver: default
+        config:
+          - subnet: 172.27.0.0/24
 
 services:
-  server_app:
-    image: node:latest # バージョン指定も可能 ex. node:12.16.1
-    container_name: server_app
+  node-server:
+    build: ./node-server
+    container_name: node-server
     tty: true
     volumes:
-      - ./src:/src
-    working_dir: "/src"
+      - ./node-server:/node-server
+    ports:
+      - 3000:3000
+    depends_on:
+      - pg
     networks:
-      - server-network
+      server-network:
+        ipv4_address: 172.27.0.3
 
-  db:
-    image: postgres
+  pg:
+    build: ./pg
+    container_name: pg
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: pg5936
       POSTGRES_DB: db
     volumes:
-      - ./db_data:/var/lib/postgresql
+      - ./pg/db_data:/docker-entrypoint-initdb.d
     ports:
-      - "5432:5432"
+      - 5432:5432
     networks:
-      - server-network
+      server-network:
+        ipv4_address: 172.27.0.2
       
 volumes:
-  db_data:
+  data:
       
-networks:
-    server-network:
-        external: true
