@@ -1,0 +1,8 @@
+
+データベースの内容をダンプ
+
+pg_dump -U ume -d db -f C:\Users\rando\Desktop\IoT\dev\furo-de-audio\docker\furo-de-audio\pg\db_data\export.sql
+pg_dump -U {user_name} -d {db_name} -f {file_path}/furo-de-audio/pg/db_data/export.sql
+
+
+export.sql内に記入されているユーザーネームをすべて"postgres"に書き換える
